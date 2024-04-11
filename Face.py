@@ -1,6 +1,6 @@
-from deepface import *
-from deepface.commons.errors import *
-from deepface.commons.options import *
+import time
+from pymongo import monitoring
+
 from deepface import DeepFace
 import os
 import filetype
@@ -12,10 +12,15 @@ from mongoengine import *
 import io
 from multiprocessing import Pool, Queue
 from dotenv import dotenv_values
+import logging
+
+log = logging.getLogger()
+log.setLevel(logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 config = dotenv_values(".env")
 
-working_path = u"D:\\PhonePhotos\\Facebook"
+working_path = u"C:\\ImageSortAttempt\\Unsorted\\Sorted"
 input_directory = u""
 output_directory = u"Sorted\\"
 input_path = os.path.join(working_path, input_directory)
@@ -25,7 +30,7 @@ output_path = os.path.join(working_path, output_directory)
 facesProcessed = 0
 facesJob = None
 
-connect(host=config["mongoConnStr"], uuidRepresentation='standard')
+connect(host=config["MONGO_CONN"], uuidRepresentation='standard')
 
 
 class Faces(DynamicDocument):
@@ -39,6 +44,27 @@ class Faces(DynamicDocument):
 			'FriendlyName'
 		],
 		'collection': 'Faces'
+	}
+
+
+class FacialEmbeddings(DynamicDocument):
+	FaceEmbedID: UUIDField(required=True, primary_key=True, default=uuid.uuid4())
+	Face: ReferenceField(Faces, PULL)
+	VGGFace: ListField(FloatField(), required=False)
+	Facenet: ListField(FloatField(), required=False)
+	Facenet512: ListField(FloatField(), required=False)
+	OpenFace: ListField(FloatField(), required=False)
+	DeepFace: ListField(FloatField(), required=False)
+	DeepID: ListField(FloatField(), required=False)
+	Dlib: ListField(FloatField(), required=False)
+	ArcFace: ListField(FloatField(), required=False)
+	SFace: ListField(FloatField(), required=False)
+	GhostFaceNet: ListField(FloatField(), required=False)
+	meta = {
+		'indexes': [
+			'Face'
+		],
+		'collection': 'FacialEmbeddings'
 	}
 
 
@@ -90,7 +116,7 @@ class FaceToFaceRelation(DynamicDocument):
 	}
 
 
-class Job_Faces(DynamicDocument):
+class JobFaces(DynamicDocument):
 	FacesProcessedID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
 	FacesDone = ListField(ReferenceField(Faces, PULL), required=False)
 	FacesToDo = ListField(ReferenceField(Faces, PULL), required=False)
@@ -104,7 +130,7 @@ class Job_Faces(DynamicDocument):
 	}
 
 
-class Job_Files(DynamicDocument):
+class JobFiles(DynamicDocument):
 	FilesProcessedID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
 	Done = ListField(ReferenceField(Files, PULL), required=True)
 	ToDo = ListField(ReferenceField(Files, PULL), required=True)
@@ -127,6 +153,7 @@ backends = [
 	'yolov8',
 	'yunet',
 	'fastmtcnn',
+	'ghosefacenet'
 ]
 
 acceptableFiles = [
@@ -141,44 +168,78 @@ acceptableFiles = [
 ]
 
 
-def processFile(file_queue):
-	print(os.getpid(), "Working")
-	df = DeepFace(model_name=ModelName.VGGFace, detector_backend=DetectorBackend.OpenCV, align=False, enforce_detection=True, target_size=(224, 224))
+class CommandLogger(monitoring.CommandListener):
+
+	def started(self, event):
+		log.debug("Command {0.command_name} with request id "
+		          "{0.request_id} started on server "
+		          "{0.connection_id}".format(event))
+
+	def succeeded(self, event):
+		log.debug("Command {0.command_name} with request id "
+		          "{0.request_id} on server {0.connection_id} "
+		          "succeeded in {0.duration_micros} "
+		          "microseconds".format(event))
+
+	def failed(self, event):
+		log.debug("Command {0.command_name} with request id "
+		          "{0.request_id} on server {0.connection_id} "
+		          "failed in {0.duration_micros} "
+		          "microseconds".format(event))
+
+
+monitoring.register(CommandLogger())
+
+
+def process_file(file_queue):
+	log.info(f"PID:{os.getpid()} - Working")
 	while True:
-		# print(os.getpid(), "processing", file)
+		file_path = file_queue.get(block=True)
+		log.info(f"PID:{os.getpid()} - Processing - {file_path}")
+		if file_path is None:
+			break
+		file = os.path.basename(file_path)
 		try:
-			filePath = file_queue.get(block=True)
-			if filePath is None:
-				break
-			file = os.path.basename(filePath)
-			Files.objects.get(FileName=file, FilePath=filePath, Processed=True)
+			Files.objects.get(FileName=file, FilePath=file_path, Processed=True)
 		except DoesNotExist:
 			try:
-				df.set_variable("img_path", filePath)
-				face_objs = df.extract_faces()
-				os.rename(filePath, os.path.join(output_path, file))
-				currentFile = Files(FileID=uuid.uuid4(), FileName=file, FilePath=filePath, Processed=True)
+
+				face_objs = DeepFace.extract_faces(file_path)
+				os.rename(file_path, os.path.join(output_path, file))
+
+				currentFile = Files(FileID=uuid.uuid4(), FileName=file, FilePath=file_path, Processed=True)
 				currentFile.save()
 				for face_obj in face_objs:
+
 					image = Image.fromarray((face_obj['face'] * 255).astype(np.uint8))
 					imageBuffer = io.BytesIO()
 					image.save(imageBuffer, format="JPEG")
+
 					currentFace = Faces(FaceID=uuid.uuid4(), Image=imageBuffer)
 					currentFace.save()
+					try:
+						face_embed_obj = DeepFace.represent(face_obj['face'])
+						FacialEmbeddings.objects(Face=Faces).modify(upset=True, new=True, set_on_insert__FaceEmbedID=uuid.uuid4(), VGGFace=face_embed_obj[0]["embedding"])
+					except Exception as e:
+						log.error(f"FaceEmbeddingError: {e}")
+						pass
 					FileFaceRelations.objects(File=currentFile).modify(upsert=True, new=True, set_on_insert__FileRelationID=uuid.uuid4(), add_to_set__Faces=currentFace)
-			except NoFaceDetectedException as e:
+			except ValueError as e:
+				log.error(f"FaceExtract: {e}")
 				pass
-				# print(e)
 			except Exception as e:
-				print("Other Exception: " + str(e))
+				log.error(f"OtherException: {e}")
+				pass
+			pass
 		except Exception as e:
-			print("File Exception? - " + str(e))
+			log.error(f"FileException: {e}")
+			pass
 
 
 def main():
 	max_processes = 4
 	file_queue = Queue()
-	worker_pool = Pool(max_processes, processFile, (file_queue,))
+	worker_pool = Pool(max_processes, process_file, (file_queue,))
 	if not os.path.isdir(input_path):
 		raise IOError("Input Path not found: " + input_path)
 	if not os.path.exists(output_path):
@@ -198,79 +259,96 @@ def main():
 	worker_pool.join()
 
 
-def isFacesAlike(inputStat):
-	return inputStat > 0.80
+def is_faces_alike(input_stat):
+	return input_stat > 0.80
 
 
-def compareFaces(JobID):
-	df = DeepFace(model_name=ModelName.VGGFace, detector_backend=DetectorBackend.OpenCV, align=False)
-	facesJob = Job_Faces.objects(FacesProcessedID=uuid.UUID(JobID)).first()
-	if facesJob is None:
-		facesJob = Job_Faces(FacesProcessedID=uuid.uuid4(), StartDate=datetime.datetime.utcnow())
-		facesJob.save()
+def compare_faces(job_id):
+	# df = DeepFace(model_name=ModelName.VGGFace, detector_backend=DetectorBackend.OpenCV, align=False)
+	faces_job = JobFaces.objects(FacesProcessedID=uuid.UUID(job_id)).first()
+	if faces_job is None:
+		faces_job = JobFaces(FacesProcessedID=uuid.uuid4(), StartDate=datetime.datetime.utcnow())
+		faces_job.save()
 
-	if not facesJob.JobCompleted:
-		Job_Faces(FacesProcessedID=facesJob.FacesProcessedID)
-		facesJob.ToDoCount = Faces.objects.count()
-		facesProcessed = facesJob.DoneCount
+	if not faces_job.JobCompleted:
+		JobFaces(FacesProcessedID=faces_job.FacesProcessedID)
+		faces_job.ToDoCount = Faces.objects.count()
+		facesProcessed = faces_job.DoneCount
 
-		if facesJob.DoneCount == 0:
-			print(f"Starting Job - {facesJob.FacesProcessedID} - {(facesJob.DoneCount/facesJob.ToDoCount) * 100}% Done.")
+		if faces_job.DoneCount == 0:
+			print(
+				f"Starting Job - {faces_job.FacesProcessedID} - {(faces_job.DoneCount / faces_job.ToDoCount) * 100}% Done.")
 		else:
-			print(f"Resuming Job - {facesJob.FacesProcessedID} - - {(facesJob.DoneCount/facesJob.ToDoCount) * 100}% Done.")
+			print(
+				f"Resuming Job - {faces_job.FacesProcessedID} - - {(faces_job.DoneCount / faces_job.ToDoCount) * 100}% Done.")
 
 		for baseFace in Faces.objects:
 			noFaceCount = 0
 			baseFaceEntry = FaceToFaceRelation.objects(ReferenceFace=baseFace).first()
 			if baseFaceEntry is None:
-				baseFaceEntry = FaceToFaceRelation(FaceToFaceID=uuid.uuid4(), ReferenceFace=baseFace)
+				baseFaceEntry = FaceToFaceRelation(FaceToFaceID=uuid.uuid4(),
+				                                   ReferenceFace=baseFace)
 				baseFaceEntry.save()
-			df.set_variable("img_path", np.array(Image.open(baseFace.Image)))
-			if (facesProcessed % 100 == 0):
-				facesJob.DoneCount = facesProcessed
-				facesJob.save()
-				print(f"***Still Running***\nFacesProcessed:{facesProcessed} - {(facesJob.DoneCount/facesJob.ToDoCount) * 100}% Done.")
-			for referenceFace in Faces.objects:
-				inLikenessCnt = FaceToFaceRelation.objects(ReferenceFace=baseFace, LikeFaces__in=[referenceFace]).count()
-				inUnLikenessCnt = FaceToFaceRelation.objects(ReferenceFace=baseFace, UnLikeFaces__in=[referenceFace]).count()
-				# print("Likeness: " + str(inLikenessCnt) + " Unlikeness: " + str(inUnLikenessCnt))
-				if (inLikenessCnt == 0 and inUnLikenessCnt == 0):
-					if (referenceFace.FaceID != baseFace.FaceID):
-						try:
-							df.set_variable("img2_path", np.array(Image.open(referenceFace.Image)))
-							results = df.verify()
 
-							if isFacesAlike(results['distance']):
+			if (facesProcessed % 100 == 0):
+				faces_job.DoneCount = facesProcessed
+				faces_job.save()
+				print(
+					f"***Still Running***\nFacesProcessed:{facesProcessed} - {(faces_job.DoneCount / faces_job.ToDoCount) * 100}% Done.")
+			for referenceFace in Faces.objects:
+				in_likeness_cnt = FaceToFaceRelation.objects(ReferenceFace=baseFace,
+				                                             LikeFaces__in=[referenceFace]).count()
+				in_un_likeness_cnt = FaceToFaceRelation.objects(ReferenceFace=baseFace,
+				                                                UnLikeFaces__in=[
+					                                                referenceFace]).count()
+				# print("Likeness: " + str(in_likeness_cnt) + " Unlikeness: " + str(inUnLikenessCnt))
+				if in_likeness_cnt == 0 and in_un_likeness_cnt == 0:
+					if referenceFace.FaceID != baseFace.FaceID:
+						try:
+							results = DeepFace.verify(np.array(Image.open(baseFace.Image)),
+							                          np.array(Image.open(referenceFace.Image)))
+
+							if is_faces_alike(results['distance']):
 								baseFaceEntry.update(add_to_set__LikeFaces=referenceFace)
 								if not FaceToFaceRelation.objects(ReferenceFace=referenceFace):
-									FaceToFaceRelation.objects(ReferenceFace=referenceFace).modify(upsert=True, new=True, set_on_insert__FaceToFaceID=uuid.uuid4(), set_on_insert__ReferenceFace=referenceFace, add_to_set__LikeFaces=baseFace)
+									FaceToFaceRelation.objects(ReferenceFace=referenceFace).modify(
+										upsert=True, new=True,
+										set_on_insert__FaceToFaceID=uuid.uuid4(),
+										set_on_insert__ReferenceFace=referenceFace,
+										add_to_set__LikeFaces=baseFace)
 								else:
-									FaceToFaceRelation.objects(ReferenceFace=referenceFace).modify(upsert=True, new=True, add_to_set__LikeFaces=baseFace)
+									FaceToFaceRelation.objects(ReferenceFace=referenceFace).modify(
+										upsert=True, new=True, add_to_set__LikeFaces=baseFace)
 							else:
 								baseFaceEntry.update(add_to_set__UnLikeFaces=referenceFace)
 								if not FaceToFaceRelation.objects(ReferenceFace=referenceFace):
-									FaceToFaceRelation.objects(ReferenceFace=referenceFace).modify(upsert=True, new=True, set_on_insert__FaceToFaceID=uuid.uuid4(), set_on_insert__ReferenceFace=referenceFace, add_to_set__UnLikeFaces=baseFace)
+									FaceToFaceRelation.objects(ReferenceFace=referenceFace).modify(
+										upsert=True, new=True,
+										set_on_insert__FaceToFaceID=uuid.uuid4(),
+										set_on_insert__ReferenceFace=referenceFace,
+										add_to_set__UnLikeFaces=baseFace)
 								else:
-									FaceToFaceRelation.objects(ReferenceFace=referenceFace).modify(upsert=True, new=True, add_to_set__UnLikeFaces=baseFace)
+									FaceToFaceRelation.objects(ReferenceFace=referenceFace).modify(
+										upsert=True, new=True, add_to_set__UnLikeFaces=baseFace)
 
-							# print("Done Comparing BaseFace: " + str(baseFace.FaceID) + " and ReferenceFace: " + str(referenceFace.FaceID) + " Likeness: " + str(results['distance']))
-						except NoFaceDetectedException:
-							# print("No Face Deteced")
+						# print("Done Comparing BaseFace: " + str(baseFace.FaceID) + " and ReferenceFace: " + str(referenceFace.FaceID) + " Likeness: " + str(results['distance']))
+						except ValueError:
+							# print("No Face Detected")
 							noFaceCount += 1
-							if (noFaceCount > 4):
+							if noFaceCount > 4:
 								# print("Going To Next Base Face.")
 								break
 						except Exception as e:
 							print("Different Exception? " + e)
 				else:
 					facesProcessed += 1
-					# print("Same Face Skipping.")
+			# print("Same Face Skipping.")
 			facesProcessed += 1
-		facesJob.JobCompleted = True
-		facesJob.FinishDate = datetime.datetime.utcnow()
-		facesJob.save()
+		faces_job.JobCompleted = True
+		faces_job.FinishDate = datetime.datetime.utcnow()
+		faces_job.save()
 	else:
-		print(f"Job: {facesJob.FacesProcessedID} is already completed.")
+		print(f"Job: {faces_job.FacesProcessedID} is already completed.")
 
 
 def on_exit(sig, func=None):
