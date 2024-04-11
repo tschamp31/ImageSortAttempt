@@ -1,0 +1,23 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+mongoengine = "*"
+numpy = "*"
+filetype = "*"
+strenum = "*"
+python-dotenv = {extras = ["cli"] }
+deepface = {file = "C:/deepface", editable = true}
+pywin32 = "*"
+cupy-cuda112 = "*"
+mediapipe = "*"
+
+[dev-packages]
+tomlkit = "*"
+setuptools = "*"
+radon = "*"
+
+[requires]
+python_version = "3.10"
