@@ -13,6 +13,7 @@ deepface = {file = "C:/deepface", editable = true}
 pywin32 = "*"
 cupy-cuda112 = "*"
 mediapipe = "*"
+django = "*"
 
 [dev-packages]
 tomlkit = "*"

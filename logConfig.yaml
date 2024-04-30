@@ -1,0 +1,70 @@
+version: 1
+objects:
+  queue:
+    class: queue.Queue
+    maxsize: 3000
+formatters:
+  formatter_console:
+    class: colorlog.ColoredFormatter
+    format: '%(white)s%(asctime)s%(reset)s 
+            %(black)s| %(log_color)s%(levelname)s%(reset)s 
+            %(black)s| %(white)s%(processName)s%(reset)s 
+            %(black)s| %(blue)s%(message)s'
+    datefmt: '%Y-%m-%d %I:%M:%S %p'
+  formatter_json:
+    class: pythonjsonlogger.jsonlogger.JsonFormatter
+    format: '%(asctime)s | %(levelname)s | %(processName)s | %(message)s'
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: ERROR
+    formatter: formatter_console
+    stream: ext://sys.stdout
+  file:
+    class: LoggerHandlers.DailyRotatingFileHandler
+    level: DEBUG
+    formatter: formatter_json
+    filename: './Logs/FaceLogs'
+    maxBytes: 2000000
+    backupCount: 20
+  queue_listener:
+    class: LoggerHandlers.QueueListenerHandler
+    handlers:
+      - cfg://handlers.console
+      - cfg://handlers.file
+    queue: cfg://objects.queue
+loggers:
+  ImageSort:
+    level: INFO
+    handlers:
+      - queue_listener
+    propagate: no
+  Main:
+    level: INFO
+    handlers:
+      - queue_listener
+    propagate: no
+  Tasks.FaceManager:
+    level: INFO
+    handlers:
+      - queue_listener
+    propagate: no
+  Utils.FacialLikeness:
+    level: INFO
+    handlers:
+      - queue_listener
+    propagate: no
+  DeepFace:
+    level: INFO
+    handlers:
+      - queue_listener
+    propagate: no
+  Database.Connection:
+    level: INFO
+    handlers:
+      - queue_listener
+    propagate: no
+root:
+  level: INFO
+  handlers:
+    - queue_listener
