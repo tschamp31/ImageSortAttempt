@@ -3,7 +3,7 @@ from mongoengine import *
 import datetime
 import uuid
 
-
+# TODO: Update to be filefield with contentType
 class Faces(DynamicDocument):
 	FaceID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
 	Image = ImageField(required=True, unique=True, size=(224, 224, False))

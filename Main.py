@@ -1,4 +1,9 @@
 import timeit
+from functools import reduce
+
+from deepface import DeepFace
+from pymongo import MongoClient
+from gridfs import GridFS
 from multiprocessing import Pool, Queue, Pipe, JoinableQueue
 import logging.config
 import filetype
@@ -7,7 +12,7 @@ import yaml
 import os
 
 from Database import *
-from Tasks.FaceManager import FaceManager
+from Tasks import GPUManager, DBManager
 from Utils import FacialLikeness
 
 with open("logConfig.yaml", 'r') as stream:
@@ -65,26 +70,34 @@ acceptable_files = [
 # path1 = Path("D:\\PhonePhotos\\Facebook\\")
 # path2 = Path("D:\\PhonePhotos\\Screenshots\\")
 # progress_bar = tqdm(total=sum(1 for _ in path1.rglob('*')) + sum(1 for _ in path2.rglob('*')))
-max_processes = 8
-work_queue = JoinableQueue()
-instruction_queue = Queue()
+gpu_max_processes = 8
+db_max_processes = 2
+db_work_queue = JoinableQueue()
+gpu_work_queue = JoinableQueue()
+db_instruction_queue = Queue()
+gpu_instruction_queue = Queue()
 # progress_bar = tqdm(total=Faces.objects.count())
 
+def chunks(l, n):
+	"""Yield n number of striped chunks from l."""
+	for i in range(0, n):
+		yield l[i::n]
 
-def send_worker_instructions(instruction):
-	for i in range(max_processes):
-		instruction_queue.put(instruction)
+def send_worker_instructions(instruction, queue, cpu_max):
+	for i in range(cpu_max):
+		queue.put(instruction)
 
 
-def send_end_queue_signal():
-	for i in range(max_processes):
-		work_queue.put(None)
+def send_end_queue_signal(queue, cpu_max):
+	for i in range(cpu_max):
+		queue.put(None)
 
 
 def main(job_type):
-	worker_pool = Pool(max_processes, FaceManager, (work_queue, instruction_queue, input_path, face_path, no_face_path))
-	send_worker_instructions(job_type)
-	instruction_queue.close()
+	gpu_worker_pool = Pool(gpu_max_processes, GPUManager, (gpu_work_queue, gpu_instruction_queue, db_work_queue, input_path, face_path, no_face_path))
+	db_worker_pool = Pool(db_max_processes, DBManager, (db_work_queue, "test"))
+	send_worker_instructions(job_type, gpu_instruction_queue, gpu_max_processes)
+	gpu_instruction_queue.close()
 	match job_type:
 		case "ProcessFiles":
 			if not os.path.isdir(input_path):
@@ -99,19 +112,25 @@ def main(job_type):
 					file_path = os.path.join(root, file)
 					kind = filetype.guess(file_path)
 					if kind is not None and kind.extension.lower() in acceptable_files and "Sorted" not in file_path:
-						work_queue.put(file_path)
+						gpu_work_queue.put(file_path)
 		case "CompareFaces":
-			for face in Faces.objects.all():
-				work_queue.put(face)
+			full_faces_table = Faces.objects[900:].all().allow_disk_use(True)
+			for chunk in full_faces_table:
+				gpu_work_queue.put(chunk)
 		case "ExtractEmbeddings":
 			for face in Faces.objects.all():
-				work_queue.put(face)
+				gpu_work_queue.put(face)
 
-	send_end_queue_signal()
-	work_queue.close()
-	work_queue.join_thread()
-	worker_pool.close()
-	worker_pool.join()
+	send_end_queue_signal(gpu_work_queue, gpu_max_processes)
+	gpu_work_queue.close()
+	gpu_work_queue.join_thread()
+	gpu_worker_pool.close()
+	gpu_worker_pool.join()
+	send_end_queue_signal(db_work_queue, db_max_processes)
+	db_work_queue.close()
+	db_work_queue.join_thread()
+	db_worker_pool.close()
+	db_worker_pool.join()
 	exit()
 
 # def on_exit(sig, func=None):
@@ -134,6 +153,41 @@ def run_benchmark():
 	print("Distance Metric: {} - AvgTime: {}μs ".format(dist_setting,timeit.timeit('FacialLikeness.verify(embedding_set_1, embedding_set_2, distance_metric=dist_setting)', globals=globals(), number=1000)))
 
 
+# Function to update metadata for all documents
+def update_metadata_for_all_documents():
+	# Connect to MongoDB
+	client = MongoClient("mongodb://ImageSort:ImageSort123!!@192.168.1.8:27017/ImageSort?authSource=admin&readPreference=primary")
+	db = client['ImageSort']
+	gridfs = GridFS(db)
+
+	log.info("We in dis bitch")
+	for file_info in db.images.files.find():
+		file_id = file_info['_id']
+		db.images.files.update_one({'_id': file_id}, {'$unset': {"metadata": ""}})
+
+def like_faces_chunks(l):
+	"""Yield n number of striped chunks from l."""
+	for i in range(0, l.count()):
+		yield l[i].LikeFaces
+
+def unlike_faces_chunks(l):
+	"""Yield n number of striped chunks from l."""
+	for i in range(0, l.count()):
+		yield l[i].UnLikeFaces
+
+def age_demographic_test():
+	for root, dirs, files in os.walk(".\Brit"):
+		for file in files:
+			file_path = os.path.join(root, file)
+			log.info("{}".format(file_path))
+			demographies = DeepFace.analyze(
+				img_path=file_path,
+				detector_backend=backends[5],
+				enforce_detection=False
+			)
+			log.info("{}".format(demographies))
+
 if __name__ == '__main__':
 	print("Starting....")
-	main("CompareFaces")
+	age_demographic_test()
+	#main("CompareFaces")

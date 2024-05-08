@@ -44,7 +44,12 @@ loggers:
     handlers:
       - queue_listener
     propagate: no
-  Tasks.FaceManager:
+  Tasks.GPUManager:
+    level: INFO
+    handlers:
+      - queue_listener
+    propagate: no
+  Tasks.DBManager:
     level: INFO
     handlers:
       - queue_listener
