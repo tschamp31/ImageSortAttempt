@@ -1,0 +1,3 @@
+[submodule "ThirdParty/deepface"]
+	path = ThirdParty/deepface
+	url = https://github.com/tschamp31/deepface.git

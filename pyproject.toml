@@ -1,11 +1,10 @@
 [project]
+version = "0.0.1"
 name = "ImageSort"
 dynamic = ["version"]
+authors = [{name = "Tyler Champagne", email = "tschampagne31@gmail.com"}]
+maintainers = [{name = "Tyler Champagne", email = "tschampagne31@gmail.com"}]
 
 [build-system]
 requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
-
-[project]
-authors = [{name = "Tyler Champagne", email = "tschampagne31@gmail.com"}]
-maintainers = [{name = "Tyler Champagne", email = "tschampagne31@gmail.com"}]

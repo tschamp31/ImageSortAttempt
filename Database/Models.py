@@ -1,159 +1,167 @@
-from enum import auto, IntEnum
-from mongoengine import *
 import datetime
 import uuid
 
-# TODO: Update to be filefield with contentType
-class Faces(DynamicDocument):
-	FaceID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
-	Image = ImageField(required=True, unique=True, size=(224, 224, False))
-	FriendlyName = StringField(required=False)
-	Tags = ListField(StringField())
-	DateCreated = DateTimeField(default=datetime.datetime.utcnow(), required=True)
-	meta = {
-		'indexes': [
-			'FriendlyName'
-		],
-		'collection': 'Faces'
-	}
+from sqlalchemy import Column, UUID, Table, PrimaryKeyConstraint, IMAGE
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.dialects.mssql import *
 
+Base = declarative_base()
 
-class FacialEmbeddings(DynamicDocument):
-	FaceEmbedID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
-	FaceEntry = ReferenceField(Faces, DO_NOTHING, required=True, unique=True)
-	VGGFace = ListField(FloatField())
-	Facenet = ListField(FloatField(), required=False)
-	Facenet512 = ListField(FloatField(), required=False)
-	OpenFace = ListField(FloatField(), required=False)
-	DeepFace = ListField(FloatField(), required=False)
-	DeepID = ListField(FloatField(), required=False)
-	Dlib = ListField(FloatField(), required=False)
-	ArcFace = ListField(FloatField(), required=False)
-	SFace = ListField(FloatField(), required=False)
-	GhostFaceNet = ListField(FloatField(), required=False)
-	meta = {
-		'indexes': [
-			'FaceEntry'
-		],
-		'collection': 'FacialEmbeddings'
-	}
+# Define the Author model
+Faces = Table(
+	'Faces',
+	Base.metadata,
+	Column('FaceID', UUID, primary_key=True, default=uuid.uuid4),
+	Column('Image', IMAGE, default=datetime.datetime.utcnow),
+	Column('FriendlyName', DATETIME2, default=datetime.datetime.utcnow),
+	Column('Tags', NVARCHAR(500), nullable=True),
+	PrimaryKeyConstraint("FaceID", mssql_clustered=True),
+)
 
+VGGFaces = Table(
+	'VGGFaces',
+	Base.metadata,
+	Column('VGGFaceID', UUID, primary_key=True, default=uuid.uuid4),
+	Column('VGGEmbedding', IMAGE, default=datetime.datetime.utcnow),
+)
 
-class FaceGroups(DynamicDocument):
-	FaceGroupID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
-	IncludedFaces = ListField(ReferenceField(Faces, PULL), required=True)
-	ExcludedFaces = ListField(ReferenceField(Faces, PULL), required=False)
-	FriendlyName = StringField(required=False)
-	LikenessThreshold = FloatField(required=True, default=70.0)
-	Tags = ListField(StringField())
-	DateCreated = DateTimeField(default=datetime.datetime.utcnow(), required=True)
-	DateUpdated = DateTimeField(required=False)
-	meta = {
-		'collection': 'FaceGroups'
-	}
+Facenet = Table(
+	'Facenet',
+	Base.metadata,
+	Column('FacenetID', UUID, primary_key=True, default=uuid.uuid4),
+	Column('FacenetEmbedding', IMAGE, default=datetime.datetime.utcnow),
+)
 
+Facenet512 = Table(
+	'Facenet512',
+	Base.metadata,
+	Column('Facenet512ID', UUID, primary_key=True, default=uuid.uuid4),
+	Column('Facenet512Embedding', IMAGE, default=datetime.datetime.utcnow),
+)
 
-class Files(DynamicDocument):
-	FileID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
-	FileName = StringField(required=True, unique=False)
-	FilePath = StringField(required=True, unique=True)
-	Processed = BooleanField(required=True, default=False)
-	DateProcessed = DateTimeField(default=datetime.datetime.utcnow(), required=True)
-	meta = {
-		'indexes': [
-			'FileName'
-		],
-		'collection': 'Files'
-	}
+OpenFace = Table(
+	'OpenFace',
+	Base.metadata,
+	Column('OpenFaceID', UUID, primary_key=True, default=uuid.uuid4),
+	Column('OpenFaceEmbedding', IMAGE, default=datetime.datetime.utcnow),
+)
+DeepFace = Table(
+	'DeepFace',
+	Base.metadata,
+	Column('DeepFaceID', UUID, primary_key=True, default=uuid.uuid4),
+	Column('DeepFaceEmbedding', IMAGE, default=datetime.datetime.utcnow),
+)
+Dlib = Table(
+	'Dlib',
+	Base.metadata,
+	Column('DlibID', UUID, primary_key=True, default=uuid.uuid4),
+	Column('DlibEmbedding', IMAGE, default=datetime.datetime.utcnow),
+)
+ArcFace = Table(
+	'ArcFace',
+	Base.metadata,
+	Column('ArcFaceID', UUID, primary_key=True, default=uuid.uuid4),
+	Column('ArcFaceEmbedding', IMAGE, default=datetime.datetime.utcnow),
+)
+SFace = Table(
+	'SFace',
+	Base.metadata,
+	Column('SFaceID', UUID, primary_key=True, default=uuid.uuid4),
+	Column('SFaceEmbedding', IMAGE, default=datetime.datetime.utcnow),
+)
+GhostFaceNet = Table(
+	'GhostFaceNet',
+	Base.metadata,
+	Column('GhostFaceNetID', UUID, primary_key=True, default=uuid.uuid4),
+	Column('GhostFaceNetEmbedding', IMAGE, default=datetime.datetime.utcnow),
+)
 
+FaceEmbedding = Table(
+	'FaceEmbedding',
+	Base.metadata,
+	Column('FaceID', UUID, primary_key=True, nullable=False),
+	Column('VGGFaceID', UUID, nullable=True),
+	Column('FacenetID', UUID, nullable=True),
+	Column('Facenet512ID', UUID, nullable=True),
+	Column('OpenFaceID', UUID, nullable=True),
+	Column('DeepFaceID', UUID, nullable=True),
+	Column('DlibID', UUID, nullable=True),
+	Column('ArcFaceID', UUID, nullable=True),
+	Column('SFaceID', UUID, nullable=True),
+	Column('GhostFaceNetID', UUID, nullable=True),
+	PrimaryKeyConstraint("FaceID", mssql_clustered=True),
+)
 
-class FileFaceRelations(DynamicDocument):
-	FileRelationID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
-	File = ReferenceField(Files, PULL, required=True, unique=True)
-	Faces = ListField(ReferenceField(Faces, PULL), required=True)
-	meta = {
-		'indexes': [
-			'File',
-			'Faces'
-		],
-		'collection': 'FileFaceRelations'
-	}
+Files = Table(
+	'Files',
+	Base.metadata,
+	Column('FileID', UUID, primary_key=True, default=uuid.uuid4),
+	Column('FileName', NVARCHAR, nullable=False),
+	Column('FilePath', NVARCHAR, nullable=False),
+)
 
+FaceFileRelationship = Table(
+	'FaceFileRelationship',
+	Base.metadata,
+	Column('FileID', UUID, nullable=False),
+	Column('FaceID', UUID, nullable=False),
+)
 
-class FaceToFaceRelation(DynamicDocument):
-	FaceToFaceID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
-	ReferenceFace = ReferenceField(Faces, PULL, required=True, unique=True)
-	LikeFaces = ListField(ReferenceField(Faces, PULL), required=False)
-	UnLikeFaces = ListField(ReferenceField(Faces, PULL), required=False)
-	LikenessThreshold = FloatField(required=True, default=70.0)
-	meta = {
-		'indexes': [
-			'ReferenceFace'
-		],
-		'collection': 'FaceToFaceRelation'
-	}
+FileProcessingJobs = Table (
+	'FileProcessingJobs',
+	Base.metadata,
+Column('FileProcessingJobID', UUID, default=uuid.uuid4),
+	Column('FileID', UUID, nullable=False),
+	Column('Processed', BIT, default=False),
+	Column('DateCreated', DATETIME2, default=datetime.datetime.utcnow),
+	Column('DateProcessed', DATETIME2, nullable=True),
+	PrimaryKeyConstraint("FileProcessingJobID", mssql_clustered=True),
+)
 
+FolderProcessingJobs = Table(
+	'FolderProcessingJobs',
+	Base.metadata,
+Column('FolderProcessingJobID', UUID, default=uuid.uuid4),
+	Column('Processed', BIT, default=False),
+	Column('DateCreated', DATETIME2, default=datetime.datetime.utcnow),
+	Column('DateProcessed', DATETIME2, nullable=True),
+	PrimaryKeyConstraint("FileProcessingJobID", mssql_clustered=True),
+)
 
-class Status(IntEnum):
-	NotStarted = auto()
-	Started = auto()
-	Processing = auto()
-	Complete = auto()
+FaceProcessingJobs = Table(
+	'FaceProcessingJobs',
+	Base.metadata,
+Column('FaceProcessingJobID', UUID, default=uuid.uuid4),
+	Column('FaceID', UUID, nullable=False),
+	Column('EmbeddingType',TINYINT, nullable=False),
+	Column('Processed', BIT, default=False),
+	Column('DateCreated', DATETIME2, default=datetime.datetime.utcnow),
+	Column('DateProcessed', DATETIME2, nullable=True),
+	PrimaryKeyConstraint("FileProcessingJobID", mssql_clustered=True),
+)
 
-	def use_name(self):
-		return self.name
-
-	def describe(self):
-		return self.name, self.value
-
-	@classmethod
-	def get_options(cls):
-		return [name for name, member in cls.__members__.items()]
-
-
-class JobStatus(DynamicDocument):
-	JobStatusID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
-	FriendlyName = StringField(required=False)
-	JobStatus = EnumField(Status, default=Status.NotStarted)
-	DoneCount = IntField(min_value=0, default=0)
-	ToDoCount = IntField(min_value=0)
-	StartDate = DateTimeField(default=datetime.datetime.utcnow(), required=False)
-	FinishDate = DateTimeField(required=False)
-	meta = {
-		'indexes': [
-			'FriendlyName'
-		],
-		'collection': 'JobStatus'
-	}
-
-
-class JobFaces(DynamicDocument):
-	FacesProcessedID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
-	FriendlyName = StringField(required=False)
-	FacesDone = ListField(ReferenceField(Faces, PULL), required=False)
-	FacesToDo = ListField(ReferenceField(Faces, PULL), required=False)
-	DoneCount = IntField(min_value=0, default=0)
-	ToDoCount = IntField(min_value=0)
-	StartDate = DateTimeField(default=datetime.datetime.utcnow(), required=False)
-	FinishDate = DateTimeField(required=False)
-	JobCompleted = BooleanField(required=False, default=False)
-	meta = {
-		'indexes': [
-			'FriendlyName'
-		],
-		'collection': 'JobFaces'
-	}
-
-
-class JobFilesFaces(DynamicDocument):
-	FileJobID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
-	WorkingFolder = StringField(required=True)
-	FaceFolder = StringField(required=True, default=u"Face\\")
-	FacelessFolder = StringField(required=True, default=u"NoFace\\")
-	JobStatus = ReferenceField(JobStatus, DO_NOTHING, required=False)
-	meta = {
-		'indexes': [
-			'WorkingFolder'
-		],
-		'collection': 'JobFilesFaces'
-	}
+# class FaceGroups(DynamicDocument):
+# 	FaceGroupID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
+# 	IncludedFaces = ListField(ReferenceField(Faces, PULL), required=True)
+# 	ExcludedFaces = ListField(ReferenceField(Faces, PULL), required=False)
+# 	FriendlyName = StringField(required=False)
+# 	LikenessThreshold = FloatField(required=True, default=70.0)
+# 	Tags = ListField(StringField())
+# 	DateCreated = DateTimeField(default=datetime.datetime.utcnow(), required=True)
+# 	DateUpdated = DateTimeField(required=False)
+# 	meta = {
+# 		'collection': 'FaceGroups'
+# 	}
+#
+# class FaceToFaceRelation(DynamicDocument):
+# 	FaceToFaceID = UUIDField(required=True, primary_key=True, default=uuid.uuid4())
+# 	ReferenceFace = ReferenceField(Faces, PULL, required=True, unique=True)
+# 	LikeFaces = ListField(ReferenceField(Faces, PULL), required=False)
+# 	UnLikeFaces = ListField(ReferenceField(Faces, PULL), required=False)
+# 	LikenessThreshold = FloatField(required=True, default=70.0)
+# 	meta = {
+# 		'indexes': [
+# 			'ReferenceFace'
+# 		],
+# 		'collection': 'FaceToFaceRelation'
+# 	}
