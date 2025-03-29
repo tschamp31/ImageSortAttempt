@@ -5,7 +5,6 @@ name = "pypi"
 
 [packages]
 libtiff = "*"
-mongoengine = "*"
 numpy = "1.23.5"
 filetype = "*"
 strenum = "*"

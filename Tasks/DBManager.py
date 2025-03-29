@@ -2,7 +2,7 @@ import shutil
 import time
 
 from Database import *
-from deepface import DeepFace
+import ThirdParty.deepface as deepface
 from PIL import Image
 import logging.config
 import numpy as np

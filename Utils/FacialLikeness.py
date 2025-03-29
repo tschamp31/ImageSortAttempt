@@ -7,8 +7,8 @@ from typing import Any, Dict, Union, List, Tuple
 import cupy as np
 
 # project dependencies
-from deepface.modules import modeling
-from deepface.models.FacialRecognition import FacialRecognition
+import ThirdParty.deepface.deepface as deepface
+from ThirdParty.deepface.deepface.models.FacialRecognition import FacialRecognition
 
 logger = logging.getLogger(__name__)
 

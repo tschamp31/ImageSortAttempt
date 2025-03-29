@@ -1,8 +1,4 @@
 version: 1
-objects:
-  queue:
-    class: queue.Queue
-    maxsize: 3000
 formatters:
   formatter_console:
     class: colorlog.ColoredFormatter
@@ -21,18 +17,20 @@ handlers:
     formatter: formatter_console
     stream: ext://sys.stdout
   file:
-    class: LoggerHandlers.DailyRotatingFileHandler
+    (): LoggerHandlers.DailyRotatingFileHandler
     level: DEBUG
     formatter: formatter_json
     filename: './Logs/FaceLogs'
     maxBytes: 2000000
     backupCount: 20
   queue_listener:
-    class: LoggerHandlers.QueueListenerHandler
+    (): LoggerHandlers.QueueListenerHandler
     handlers:
       - cfg://handlers.console
       - cfg://handlers.file
-    queue: cfg://objects.queue
+    queue:
+      class: queue.Queue
+      maxsize: 3000
 loggers:
   ImageSort:
     level: INFO
