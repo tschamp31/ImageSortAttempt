@@ -1,0 +1,11 @@
+services:
+  test:
+    image: rapidsai/rapidsai:23.06-cuda11.8-runtime-ubuntu22.04-py3.10
+    command: nvidia-smi
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

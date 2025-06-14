@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import Column, UUID, Table, PrimaryKeyConstraint, IMAGE
+from sqlalchemy import Column, UUID, Table, PrimaryKeyConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.mssql import *
 
@@ -12,7 +12,7 @@ Faces = Table(
 	'Faces',
 	Base.metadata,
 	Column('FaceID', UUID, primary_key=True, default=uuid.uuid4),
-	Column('Image', IMAGE, default=datetime.datetime.utcnow),
+	Column('Image', IMAGE , default=datetime.datetime.utcnow),
 	Column('FriendlyName', DATETIME2, default=datetime.datetime.utcnow),
 	Column('Tags', NVARCHAR(500), nullable=True),
 	PrimaryKeyConstraint("FaceID", mssql_clustered=True),

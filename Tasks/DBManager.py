@@ -5,7 +5,7 @@ from Database import *
 import ThirdParty.deepface as deepface
 from PIL import Image
 import logging.config
-import numpy as np
+import cupy as np
 import os
 import io
 

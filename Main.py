@@ -1,13 +1,13 @@
 import timeit
 from functools import reduce
 
-from deepface import DeepFace
+from deepface import *
 from pymongo import MongoClient
 from gridfs import GridFS
 from multiprocessing import Pool, Queue, Pipe, JoinableQueue
 import logging.config
 import filetype
-import numpy as np
+import cupy as np
 import yaml
 import os
 
@@ -28,7 +28,7 @@ log = logging.getLogger()
 # tf.get_logger().setLevel(logging.DEBUG)
 # log.setLevel(logging.INFO)
 
-working_path = u"H:\Everything"
+working_path = u"H:\\Everything"
 input_directory = u""
 face_directory = u"Sorted\\"
 no_face_directory = u"NoFace\\"
@@ -176,7 +176,7 @@ def unlike_faces_chunks(l):
 		yield l[i].UnLikeFaces
 
 def age_demographic_test():
-	for root, dirs, files in os.walk(".\Brit"):
+	for root, dirs, files in os.walk(".\\Brit"):
 		for file in files:
 			file_path = os.path.join(root, file)
 			log.info("{}".format(file_path))

@@ -25,7 +25,7 @@
         <ENTRY IS_ENABLED="true" PARSER="yaml" IS_EXECUTABLE="false" PATH="logConfig.yaml" />
       </ENTRIES>
     </EXTENSION>
-    <option name="SCRIPT_NAME" value="C:\ImageSortAttempt\Main.py" />
+    <option name="SCRIPT_NAME" value="C:/ImageSortAttempt/Main.py" />
     <option name="PARAMETERS" value="" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
